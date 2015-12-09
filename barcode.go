@@ -140,10 +140,11 @@ func ParseBuffer(buf []byte) (string, error) {
 
 }
 
-func GetScanners(ctx *usb.Context) ([]*Scanner, error) {
+// GetScanners scans all usb ports to get all scanners
+func GetScanners(ctx *usb.Context, v usb.ID, p usb.ID) ([]*Scanner, error) {
 	var scanners []*Scanner
 	devices, err := ctx.ListDevices(func(desc *usb.Descriptor) bool {
-		return desc.Vendor == 0x0536 && desc.Product == 0x0461
+		return desc.Vendor == v && desc.Product == p
 	})
 
 	if err != nil {

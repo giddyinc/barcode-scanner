@@ -7,11 +7,17 @@ import (
 	"github.com/truveris/gousb/usb"
 )
 
+const (
+	VENDOR  = 0x0536
+	PRODUCT = 0x0461
+)
+
 func main() {
+
 	ctx := usb.NewContext()
 	defer ctx.Close()
 
-	scanners, err := scale.GetScanners(ctx)
+	scanners, err := scale.GetScanners(ctx, VENDOR, PRODUCT)
 	if err != nil {
 		log.Fatal(err)
 	}
