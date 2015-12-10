@@ -16,7 +16,7 @@ func main() {
 	ctx := usb.NewContext()
 	defer ctx.Close()
 
-	scanners, err := scale.GetScanners(ctx, VENDOR, PRODUCT)
+	scanners, err := barcode.GetScanners(ctx, VENDOR, PRODUCT)
 	if err != nil {
 		log.Fatal(err)
 	}
