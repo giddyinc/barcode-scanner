@@ -3,7 +3,9 @@ package scale
 import (
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
+	"strings"
 
 	"github.com/truveris/gousb/usb"
 )
@@ -55,7 +57,39 @@ type Scanner struct {
 	*usb.Device
 }
 
-// Read: read buffer via usb port
+// CRead deciphers the barcode and pipe it to a channel
+func (sc *Scanner) CRead(c chan string) {
+	data := make([]byte, BUFFER_LENGTH)
+	out := []string{}
+	endpoint, err := sc.OpenEndpoint(USB_CONFIG, USB_IFACE, USB_SETUP,
+		USB_ENDPOINT|uint8(usb.ENDPOINT_DIR_IN))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	hasData := false
+	for true {
+		_, err := endpoint.Read(data)
+		if err != nil {
+			if hasData {
+				c <- strings.Join(out, "")
+				out = []string{}
+				hasData = false
+			}
+		}
+
+		d, err := ParseBuffer(data)
+		if err != nil {
+			continue
+		}
+		if d != TERMINATOR_STR && d != SHIFT_KEY_STR {
+			out = append(out, d)
+			hasData = true
+		}
+	}
+}
+
+// Read reads buffer via usb port
 func (sc *Scanner) Read() ([]string, error) {
 	data := make([]byte, BUFFER_LENGTH)
 	out := []string{}

@@ -13,7 +13,6 @@ const (
 )
 
 func main() {
-
 	ctx := usb.NewContext()
 	defer ctx.Close()
 
@@ -25,9 +24,14 @@ func main() {
 		defer sc.Close()
 	}
 	sc := scanners[0]
-	data, err := sc.Read()
-	if err != nil {
-		log.Fatal(err)
+
+	chn := make(chan string)
+	go sc.CRead(chn)
+
+	for {
+		select {
+		case bar := <-chn:
+			log.Println(bar)
+		}
 	}
-	log.Println(data)
 }
