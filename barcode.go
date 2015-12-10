@@ -66,7 +66,7 @@ func (sc *Scanner) CRead(c chan string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	log.Println("barcode scanner is ready")
 	hasData := false
 	for true {
 		_, err := endpoint.Read(data)
@@ -98,7 +98,7 @@ func (sc *Scanner) Read() ([]string, error) {
 	if err != nil {
 		return out, err
 	}
-
+	log.Println("barcode scanner is ready")
 	dataLen, err := endpoint.Read(data)
 	if err != nil {
 		return out, err
