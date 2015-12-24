@@ -7,50 +7,52 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/golang/glog"
 	"github.com/truveris/gousb/usb"
 )
 
 const (
-	BUFFER_LENGTH = 8
+	BufferLength = 8
 
-	USB_CONFIG   = uint8(1)
-	USB_IFACE    = uint8(0)
-	USB_SETUP    = uint8(0)
-	USB_ENDPOINT = uint8(3)
+	UsbConfig   = uint8(1)
+	UsbIface    = uint8(0)
+	UsbSetup    = uint8(0)
+	UsbEndpoint = uint8(3)
+
+	ErrorIgnore = "libusb: timeout [code -7]"
 )
 
 var (
-	ERROR_DEVICE_NOT_FOUND       = errors.New("Device not present")
-	ERROR_DEVICE_READ_INCOMPLETE = errors.New(
+	ErrorDeviceNotFound       = errors.New("Device not present")
+	ErrorDeviceReadIncomplete = errors.New(
 		"Data read from endpoint is not complete")
-	ERROR_BUFFER_LENGTH = errors.New(fmt.Sprintf("Buffer should have %d bytes", BUFFER_LENGTH))
+	ErrorBufferLength = errors.New(fmt.Sprintf("Buffer should have %d bytes", BufferLength))
 
 	// key mapping
-	KEYS = []string{
-		" ", " ", " ", " ",
-		"a", "b", "c", "d", "e", "f", "g", "h", "i",
-		"j", "k", "l", "m", "n", "o", "p", "q", "r",
-		"s", "t", "u", "v", "w", "x", "y", "z",
+	// Ref: http://www.usb.org/developers/hidpage/Hut1_12v2.pdf chapter 10
+	Keys = []string{
+		"", "", "", "", "a", "b", "c", "d", "e", "f",
+		"g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
+		"q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
 		"1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-		" ", "-", "=", "[", "]", "\\", ";", "'", "~",
-		",", ".", "/",
+		"ENTER", "ESCAPE", "DELETE", "TAB", " ", "-", "=", "[", "]", "\\",
+		"", ";", "'", "~", ",", ".", "/",
 	}
 
-	UPPER_KEYS = []string{
-		" ", " ", " ", " ",
-		"A", "B", "C", "D", "E", "F", "G", "H", "I",
-		"J", "K", "L", "M", "N", "O", "P", "Q", "R",
-		"S", "T", "U", "V", "W", "X", "Y", "Z",
+	UpperKeys = []string{
+		" ", " ", " ", " ", "A", "B", "C", "D", "E", "F",
+		"G", "H", "I", "J", "K", "L", "M", "N", "O", "P",
+		"Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
 		"!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
-		" ", "_", "+", "{", "}", "|", ":", "\"", "~",
-		"<", ">", "?",
+		"ENTER", "ESCAPE", "DELETE", "TAB", " ", "_", "+", "{", "}", "|",
+		"", ":", "\"", "~", "<", ">", "?",
 	}
 
-	TERMINATOR_STR = "尾"
-	SHIFT_KEY_STR  = "换"
+	TerminatorStr = "ENTER"
+	ShiftKeyStr   = "SHIFT"
 
-	TERMINATOR = []byte{0, 0, 0, 0, 0, 0, 0, 0}
-	SHIFT_KEY  = []byte{2, 0, 0, 0, 0, 0, 0, 0}
+	Terminator = []byte{0, 0, 40, 0, 0, 0, 0, 0}
+	ShiftKey   = []byte{2, 0, 0, 0, 0, 0, 0, 0}
 )
 
 type Scanner struct {
@@ -59,22 +61,19 @@ type Scanner struct {
 
 // CRead deciphers the barcode and pipe it to a channel
 func (sc *Scanner) CRead(c chan string) {
-	data := make([]byte, BUFFER_LENGTH)
+	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(USB_CONFIG, USB_IFACE, USB_SETUP,
-		USB_ENDPOINT|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(UsbConfig, UsbIface, UsbSetup,
+		UsbEndpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("barcode scanner is ready")
-	hasData := false
 	for true {
 		_, err := endpoint.Read(data)
 		if err != nil {
-			if hasData {
-				c <- strings.Join(out, "")
-				out = []string{}
-				hasData = false
+			if err.Error() != ErrorIgnore {
+				log.Println(err)
 			}
 		}
 
@@ -82,94 +81,99 @@ func (sc *Scanner) CRead(c chan string) {
 		if err != nil {
 			continue
 		}
-		if d != TERMINATOR_STR && d != SHIFT_KEY_STR {
+		if d != TerminatorStr && d != ShiftKeyStr {
 			out = append(out, d)
-			hasData = true
+		}
+		if d == TerminatorStr {
+			c <- strings.Join(out, "")
+			out = []string{}
 		}
 	}
 }
 
 // Read reads buffer via usb port
 func (sc *Scanner) Read() ([]string, error) {
-	data := make([]byte, BUFFER_LENGTH)
+	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(USB_CONFIG, USB_IFACE, USB_SETUP,
-		USB_ENDPOINT|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(UsbConfig, UsbIface, UsbSetup,
+		UsbEndpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		return out, err
 	}
 	log.Println("barcode scanner is ready")
 	dataLen, err := endpoint.Read(data)
 	if err != nil {
-		return out, err
+		if err.Error() != ErrorIgnore {
+			log.Println(err)
+		}
 	}
-	if dataLen != BUFFER_LENGTH {
-		return out, ERROR_DEVICE_READ_INCOMPLETE
+	if dataLen != BufferLength {
+		return out, ErrorDeviceReadIncomplete
 	}
 
 	d, err := ParseBuffer(data)
 	if err != nil {
 		return out, err
 	}
-	if d != TERMINATOR_STR && d != SHIFT_KEY_STR {
+	if d != TerminatorStr && d != ShiftKeyStr {
 		out = append(out, d)
 	}
 	for true {
 		dataLen, err = endpoint.Read(data)
 		if err != nil {
-			break
+			glog.Warning(err)
 		}
 		d, err = ParseBuffer(data)
-		if d != TERMINATOR_STR && d != SHIFT_KEY_STR {
+		if d != TerminatorStr && d != ShiftKeyStr {
 			out = append(out, d)
+		}
+		if d == TerminatorStr {
+			break
 		}
 	}
 
 	return out, nil
 }
 
-// isTerminator checks if a buffer is a terminator
-func isTerminator(buf []byte) bool {
-	for _, b := range buf {
-		if b != 0 {
+// assume they have the same length
+func sameSlice(s1 []byte, s2 []byte) bool {
+	for i, b := range s1 {
+		if b != s2[i] {
 			return false
 		}
 	}
 	return true
+}
+
+// isTerminator checks if a buffer is a terminator
+func isTerminator(buf []byte) bool {
+	return sameSlice(buf, Terminator)
 }
 
 // isShift checks if a buffer is a shift key
 func isShift(buf []byte) bool {
-	for i, b := range buf {
-		if i == 0 && b != 2 {
-			return false
-		}
-		if i > 0 && b != 0 {
-			return false
-		}
-	}
-	return true
+	return sameSlice(buf, ShiftKey)
 }
 
 // ParseBuffer parses a 8-byte buffer
 func ParseBuffer(buf []byte) (string, error) {
-	if len(buf) != BUFFER_LENGTH {
-		return "", ERROR_BUFFER_LENGTH
+	if len(buf) != BufferLength {
+		return "", ErrorBufferLength
 	}
 	if isTerminator(buf) {
-		return TERMINATOR_STR, nil
+		return TerminatorStr, nil
 	} else if isShift(buf) {
-		return SHIFT_KEY_STR, nil
+		return ShiftKeyStr, nil
 	}
 	isShift := buf[0] == 2
 	key := int(buf[2])
-	if key > len(KEYS)-1 {
+	if key > len(Keys)-1 {
 		return "", errors.New(fmt.Sprintf("Unexpected key %d", key))
 	}
 	if isShift {
-		return UPPER_KEYS[key], nil
+		return UpperKeys[key], nil
 	} else {
-		return KEYS[key], nil
+		return Keys[key], nil
 	}
 
 }
@@ -186,7 +190,7 @@ func GetScanners(ctx *usb.Context, v usb.ID, p usb.ID) ([]*Scanner, error) {
 	}
 
 	if len(devices) == 0 {
-		return scanners, ERROR_DEVICE_NOT_FOUND
+		return scanners, ErrorDeviceNotFound
 	}
 
 	for _, dev := range devices {
