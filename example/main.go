@@ -8,15 +8,15 @@ import (
 )
 
 const (
-	VENDOR  = 0x0536
-	PRODUCT = 0x0461
+	Vendor  = 0x0536
+	Product = 0x0461
 )
 
 func main() {
 	ctx := usb.NewContext()
 	defer ctx.Close()
 
-	scanners, err := barcode.GetScanners(ctx, VENDOR, PRODUCT)
+	scanners, err := barcode.GetScanners(ctx, Vendor, Product)
 	if err != nil {
 		log.Fatal(err)
 	}
