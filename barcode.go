@@ -84,7 +84,7 @@ func (sc *Scanner) CRead(c chan string) {
 		if d != TerminatorStr && d != ShiftKeyStr {
 			out = append(out, d)
 		}
-		if d == TerminatorStr {
+		if d == TerminatorStr && len(out) > 0 {
 			c <- strings.Join(out, "")
 			out = []string{}
 		}
