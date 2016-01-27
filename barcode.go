@@ -6,6 +6,7 @@ import (
 	"log"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/giddyinc/gousb/usb"
 )
@@ -17,6 +18,8 @@ const (
 	UsbIface    = uint8(0)
 	UsbSetup    = uint8(0)
 	UsbEndpoint = uint8(3)
+
+	SleepDuration = 500 * time.Millisecond
 
 	ErrorIgnore = "libusb: timeout [code -7]"
 )
@@ -71,13 +74,15 @@ func (sc *Scanner) CRead(c chan string) {
 	for {
 		_, err := endpoint.Read(data)
 		if err != nil {
-			if err.Error() != ErrorIgnore {
-				log.Println(err)
-			}
+			log.Println(err)
+			time.Sleep(SleepDuration)
+			continue
 		}
 
 		d, err := ParseBuffer(data)
 		if err != nil {
+			log.Println(err)
+			time.Sleep(SleepDuration)
 			continue
 		}
 		if d != TerminatorStr && d != ShiftKeyStr {
@@ -121,6 +126,8 @@ func (sc *Scanner) Read() ([]string, error) {
 		dataLen, err = endpoint.Read(data)
 		if err != nil {
 			log.Println(err)
+			time.Sleep(SleepDuration)
+			continue
 		}
 		d, err = ParseBuffer(data)
 		if d != TerminatorStr && d != ShiftKeyStr {
