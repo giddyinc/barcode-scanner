@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/giddyinc/barcode-scanner"
-	"github.com/truveris/gousb/usb"
+	"github.com/giddyinc/gousb/usb"
 )
 
 const (

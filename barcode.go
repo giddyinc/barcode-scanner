@@ -7,8 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/golang/glog"
-	"github.com/truveris/gousb/usb"
+	"github.com/giddyinc/gousb/usb"
 )
 
 const (
@@ -69,7 +68,7 @@ func (sc *Scanner) CRead(c chan string) {
 		log.Fatal(err)
 	}
 	log.Println("barcode scanner is ready")
-	for true {
+	for {
 		_, err := endpoint.Read(data)
 		if err != nil {
 			if err.Error() != ErrorIgnore {
@@ -118,10 +117,10 @@ func (sc *Scanner) Read() ([]string, error) {
 	if d != TerminatorStr && d != ShiftKeyStr {
 		out = append(out, d)
 	}
-	for true {
+	for {
 		dataLen, err = endpoint.Read(data)
 		if err != nil {
-			glog.Warning(err)
+			log.Println(err)
 		}
 		d, err = ParseBuffer(data)
 		if d != TerminatorStr && d != ShiftKeyStr {
