@@ -92,6 +92,7 @@ func (sc *Scanner) CRead(c chan string) {
 			c <- strings.Join(out, "")
 			out = []string{}
 		}
+		time.Sleep(SleepDuration)
 	}
 }
 
