@@ -81,7 +81,6 @@ func (sc *Scanner) CRead(c chan string) {
 		}
 
 		d, err := ParseBuffer(data)
-		log.Println(d)
 		if err != nil {
 			log.Println(err)
 			continue
