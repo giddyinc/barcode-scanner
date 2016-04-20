@@ -8,15 +8,18 @@ import (
 )
 
 const (
-	Vendor  = 0x0536
-	Product = 0x0461
+	Vendor  = 0x0c2e
+	Product = 0x00
 )
 
 func main() {
 	ctx := usb.NewContext()
 	defer ctx.Close()
-
-	scanners, err := barcode.GetScanners(ctx, Vendor, Product)
+	config := scanner.UsbConfig{
+		Vendor:  Vendor,
+		Product: Product,
+	}
+	scanners, err := scanner.GetScanners(ctx, config)
 	if err != nil {
 		log.Fatal(err)
 	}

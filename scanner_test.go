@@ -1,4 +1,4 @@
-package barcode
+package scanner
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestIsTerminator(t *testing.T) {
-	assert.True(t, isTerminator([]byte{0, 0, 0, 0, 0, 0, 0, 0}))
+	assert.True(t, isTerminator([]byte{0, 0, 40, 0, 0, 0, 0, 0}))
 	assert.False(t, isTerminator([]byte{0, 0, 0, 0, 1, 0, 0, 0}))
 }
 
@@ -29,12 +29,12 @@ func TestParseBuffer(t *testing.T) {
 	assert.Equal(t, r, "1")
 	assert.Nil(t, err)
 
-	r, err = ParseBuffer([]byte{0, 0, 0, 0, 0, 0, 0, 0})
-	assert.Equal(t, r, TERMINATOR_STR)
+	r, err = ParseBuffer([]byte{0, 0, 40, 0, 0, 0, 0, 0})
+	assert.Equal(t, r, TerminatorStr)
 	assert.Nil(t, err)
 
 	r, err = ParseBuffer([]byte{2, 0, 0, 0, 0, 0, 0, 0})
-	assert.Equal(t, r, SHIFT_KEY_STR)
+	assert.Equal(t, r, ShiftKeyStr)
 	assert.Nil(t, err)
 
 	r, err = ParseBuffer([]byte{0, 0, 30, 0, 0, 0, 0, 0})

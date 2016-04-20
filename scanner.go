@@ -1,4 +1,4 @@
-package barcode
+package scanner
 
 import (
 	"errors"
@@ -47,20 +47,28 @@ var (
 	ShiftKey   = []byte{2, 0, 0, 0, 0, 0, 0, 0}
 )
 
+type UsbConfig struct {
+	Vendor   usb.ID
+	Product  usb.ID
+	Config   uint8
+	Iface    uint8
+	Setup    uint8
+	Endpoint uint8
+}
+
 type Scanner struct {
 	*usb.Device
-	config   uint8
-	iface    uint8
-	setup    uint8
-	endpoint uint8
+	Config UsbConfig
 }
 
 // CRead deciphers the barcode and pipe it to a channel
 func (sc *Scanner) CRead(c chan string) {
 	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(sc.config, sc.iface, sc.setup,
-		sc.endpoint|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(sc.Config.Config,
+		sc.Config.Iface,
+		sc.Config.Setup,
+		sc.Config.Endpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -92,8 +100,11 @@ func (sc *Scanner) CRead(c chan string) {
 func (sc *Scanner) Read() ([]string, error) {
 	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(sc.config, sc.iface, sc.setup,
-		sc.endpoint|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(
+		sc.Config.Config,
+		sc.Config.Iface,
+		sc.Config.Setup,
+		sc.Config.Endpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		return out, err
 	}
@@ -176,13 +187,14 @@ func ParseBuffer(buf []byte) (string, error) {
 
 // GetScanners scans all usb ports to get all scanners
 // To omit product ID, set prod to 0.
-func GetScanners(ctx *usb.Context, vendor usb.ID, prod usb.ID) ([]*Scanner, error) {
+func GetScanners(ctx *usb.Context, config UsbConfig) ([]*Scanner, error) {
 	var scanners []*Scanner
 	devices, err := ctx.ListDevices(func(desc *usb.Descriptor) bool {
-		if prod == usb.ID(0) {
-			return desc.Vendor == vendor
+		var selected = desc.Vendor == config.Vendor
+		if config.Product != usb.ID(0) {
+			selected = selected && desc.Product == config.Product
 		}
-		return desc.Vendor == vendor && desc.Product == prod
+		return selected
 	})
 
 	if err != nil {
@@ -205,12 +217,13 @@ getDevice:
 				for _, iface := range alt.Setups {
 					for _, end := range iface.Endpoints {
 						if end.Direction() == usb.ENDPOINT_DIR_IN {
+							config.Config = cfg.Config
+							config.Iface = alt.Number
+							config.Setup = iface.Number
+							config.Endpoint = uint8(end.Number())
 							sc := &Scanner{
 								dev,
-								cfg.Config,
-								alt.Number,
-								iface.Number,
-								uint8(end.Number()),
+								config,
 							}
 							// don't timeout reading
 							sc.ReadTimeout = 0
