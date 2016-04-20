@@ -12,13 +12,7 @@ import (
 )
 
 const (
-	BufferLength = 8
-
-	UsbConfig   = uint8(1)
-	UsbIface    = uint8(0)
-	UsbSetup    = uint8(0)
-	UsbEndpoint = uint8(3)
-
+	BufferLength  = 8
 	SleepDuration = 500 * time.Millisecond
 
 	ErrorIgnore = "libusb: timeout [code -7]"
@@ -59,14 +53,18 @@ var (
 
 type Scanner struct {
 	*usb.Device
+	config   uint8
+	iface    uint8
+	setup    uint8
+	endpoint uint8
 }
 
 // CRead deciphers the barcode and pipe it to a channel
 func (sc *Scanner) CRead(c chan string) {
 	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(UsbConfig, UsbIface, UsbSetup,
-		UsbEndpoint|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(sc.config, sc.iface, sc.setup,
+		sc.endpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -100,8 +98,8 @@ func (sc *Scanner) CRead(c chan string) {
 func (sc *Scanner) Read() ([]string, error) {
 	data := make([]byte, BufferLength)
 	out := []string{}
-	endpoint, err := sc.OpenEndpoint(UsbConfig, UsbIface, UsbSetup,
-		UsbEndpoint|uint8(usb.ENDPOINT_DIR_IN))
+	endpoint, err := sc.OpenEndpoint(sc.config, sc.iface, sc.setup,
+		sc.endpoint|uint8(usb.ENDPOINT_DIR_IN))
 	if err != nil {
 		return out, err
 	}
@@ -186,10 +184,14 @@ func ParseBuffer(buf []byte) (string, error) {
 }
 
 // GetScanners scans all usb ports to get all scanners
-func GetScanners(ctx *usb.Context, v usb.ID, p usb.ID) ([]*Scanner, error) {
+// To omit product ID, set prod to 0.
+func GetScanners(ctx *usb.Context, vendor usb.ID, prod usb.ID) ([]*Scanner, error) {
 	var scanners []*Scanner
 	devices, err := ctx.ListDevices(func(desc *usb.Descriptor) bool {
-		return desc.Vendor == v && desc.Product == p
+		if prod == usb.ID(0) {
+			return desc.Vendor == vendor
+		}
+		return desc.Vendor == vendor && desc.Product == prod
 	})
 
 	if err != nil {
@@ -200,15 +202,33 @@ func GetScanners(ctx *usb.Context, v usb.ID, p usb.ID) ([]*Scanner, error) {
 		return scanners, ErrorDeviceNotFound
 	}
 
+getDevice:
 	for _, dev := range devices {
 		if runtime.GOOS == "linux" {
 			dev.DetachKernelDriver(0)
 		}
 
-		sc := &Scanner{
-			dev,
+		// get devices with IN direction on endpoint
+		for _, cfg := range dev.Descriptor.Configs {
+			for _, alt := range cfg.Interfaces {
+				for _, iface := range alt.Setups {
+					for _, end := range iface.Endpoints {
+						if end.Direction() == usb.ENDPOINT_DIR_IN {
+							sc := &Scanner{
+								dev,
+								cfg.Config,
+								alt.Number,
+								iface.Number,
+								uint8(end.Number()),
+							}
+							scanners = append(scanners, sc)
+							continue getDevice
+						}
+					}
+				}
+			}
 		}
-		scanners = append(scanners, sc)
+
 	}
 
 	return scanners, nil
