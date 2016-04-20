@@ -6,16 +6,12 @@ import (
 	"log"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/giddyinc/gousb/usb"
 )
 
 const (
-	BufferLength  = 8
-	SleepDuration = 500 * time.Millisecond
-
-	ErrorIgnore = "libusb: timeout [code -7]"
+	BufferLength = 8
 )
 
 var (
@@ -73,14 +69,13 @@ func (sc *Scanner) CRead(c chan string) {
 		_, err := endpoint.Read(data)
 		if err != nil {
 			log.Println(err)
-			time.Sleep(SleepDuration)
 			continue
 		}
 
 		d, err := ParseBuffer(data)
+		log.Println(d)
 		if err != nil {
 			log.Println(err)
-			time.Sleep(SleepDuration)
 			continue
 		}
 		if d != TerminatorStr && d != ShiftKeyStr {
@@ -90,7 +85,6 @@ func (sc *Scanner) CRead(c chan string) {
 			c <- strings.Join(out, "")
 			out = []string{}
 		}
-		time.Sleep(SleepDuration)
 	}
 }
 
@@ -106,9 +100,7 @@ func (sc *Scanner) Read() ([]string, error) {
 	log.Println("barcode scanner is ready")
 	dataLen, err := endpoint.Read(data)
 	if err != nil {
-		if err.Error() != ErrorIgnore {
-			log.Println(err)
-		}
+		log.Println(err)
 	}
 	if dataLen != BufferLength {
 		return out, ErrorDeviceReadIncomplete
@@ -125,7 +117,6 @@ func (sc *Scanner) Read() ([]string, error) {
 		dataLen, err = endpoint.Read(data)
 		if err != nil {
 			log.Println(err)
-			time.Sleep(SleepDuration)
 			continue
 		}
 		d, err = ParseBuffer(data)
@@ -221,6 +212,8 @@ getDevice:
 								iface.Number,
 								uint8(end.Number()),
 							}
+							// don't timeout reading
+							sc.ReadTimeout = 0
 							scanners = append(scanners, sc)
 							continue getDevice
 						}
